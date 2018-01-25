@@ -1,0 +1,75 @@
+---
+
+- name: copy my public key into tempfile
+  shell: /usr/bin/tail -1 /root/.ssh/authorized_keys > mykey
+
+- name: run installimage 
+  shell: /root/.oldroot/nfs/install/installimage -a -b grub -r yes -l 1 -i /root/images/Debian-93-stretch-64-minimal.tar.gz -d "sda,sdb" -K /root/mykey -p "/boot:ext3:4G,/:ext4:all"
+  register: result
+
+# - debug: var=result
+#
+
+- name: reboot server
+  command: reboot
+  async: 0
+  poll: 0
+  ignore_errors: True
+
+- name: remove server from local known_hosts file
+  local_action: command  /usr/bin/ssh-keygen -R {{ inventory_hostname }}
+  ignore_errors: True
+
+
+- name: pause for a while for the reboot to kick in
+  pause: seconds=180
+
+- name: waiting for server to come back
+  local_action:
+    module: wait_for
+      host={{ inventory_hostname }}
+      port=22
+      delay=1
+      timeout=180
+
+- name: apt-get update 
+  raw: apt-get update -qq 
+
+- name: install python
+  raw: apt-get install python -y -q
+
+
+- name: proper hosts file
+  raw: echo "127.0.0.1       localhost.localdomain localhost" > /etc/hosts && echo "{{ privip }}  {{ hostname }} {{ hostname2 }} pvelocalhost" >> /etc/hosts
+
+- name: Fix hostname in /etc/hosts
+  shell: sed -i "s/Debian-93-stretch-64-minimal/{{ hostname }}/g" /etc/hosts
+
+- name: Fix hostname in /etc/hostname
+  shell: sed -i "s/Debian-93-stretch-64-minimal/{{ hostname }}/g" /etc/hostname
+
+- name: set hostname
+  shell: hostname {{ hostname }}
+
+- name: configure eth1 10G NIC
+  template: owner=root group=root mode=644
+            src=enp97s0f0
+            dest=/etc/network/interfaces.d/enp97s0f0
+
+- name: ifup enp97s0f0
+  raw: ifup enp97s0f0
+
+
+- name: proxmox
+  raw: export DEBIAN_FRONTEND=noninteractive && echo "deb http://download.proxmox.com/debian/pve stretch pve-no-subscription" > /etc/apt/sources.list.d/pve-install-repo.list && wget http://download.proxmox.com/debian/proxmox-ve-release-5.x.gpg -O /etc/apt/trusted.gpg.d/proxmox-ve-release-5.x.gpg && apt-get update && apt dist-upgrade -y
+- name: proxmox post config
+  raw: export DEBIAN_FRONTEND=noninteractive && apt install proxmox-ve postfix open-iscsi -y
+  ignore_errors: True
+- name: cleanup
+  raw: rm -f /etc/apt/sources.list.d/pve-enterprise.list
+- name: reboot server
+  command: reboot
+  async: 0
+  poll: 0
+  ignore_errors: True
+

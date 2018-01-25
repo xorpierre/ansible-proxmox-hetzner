@@ -1,0 +1,3 @@
+[proxmox]
+xxx.xxx.xxx.xxx hostname2="host1" hostname="host1.test.com" privip="10.2.0.1"
+

@@ -1,0 +1,15 @@
+
+- name: reboot server into rescue image
+  hosts: proxmox
+  connection: local
+  vars_files:
+  - secrets.yml
+  roles:
+  - role: hetzner-boot-rescue
+- name: install proxmox
+  hosts: proxmox
+  vars_files:
+  - secrets.yml
+  roles:
+  - role: hetzner-install-proxmox
+  
